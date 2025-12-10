@@ -550,16 +550,37 @@
                 
                 if (result.status === 'OK') {
                     console.log(`Payment Token Generated: ${result.token}`);
-                    alert("Success! Token generated. In a real app, this token is sent to your server to charge the card.");
-                    closePaymentModal();
-                    cart = [];
-                    updateCartUI();
+                    
+                    // Calculate total amount in CENTS (Square requires integers)
+                    const totalAmountCents = Math.round(cart.reduce((sum, item) => sum + (item.price * item.quantity), 0) * 100);
+
+                    // Send the token to the backend to charge the card
+                    const response = await fetch('/api/create-payment', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sourceId: result.token,
+                            amount: totalAmountCents,
+                            idempotencyKey: crypto.randomUUID() // Prevents double-charging
+                        })
+                    });
+
+                    const paymentResult = await response.json();
+
+                    if (response.ok) {
+                        alert(`Payment Complete! Transaction ID: ${paymentResult.payment.id}`);
+                        closePaymentModal();
+                        cart = [];
+                        updateCartUI();
+                    } else {
+                        throw new Error(paymentResult.error || "Payment Declined");
+                    }
                 } else {
                     alert(`Payment failed: ${result.errors[0].message}`);
                 }
             } catch (e) {
                 console.error(e);
-                alert("An unexpected error occurred.");
+                alert("Payment Failed: " + e.message);
             }
         }
 
