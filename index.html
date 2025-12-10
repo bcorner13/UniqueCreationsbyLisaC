@@ -13,6 +13,9 @@
     
     <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Square Web Payments SDK -->
+    <script src="https://web.squarecdn.com/v1/square.js"></script>
 
     <script>
         tailwind.config = {
@@ -150,7 +153,7 @@
                             <span class="block text-rose-800 xl:inline italic">elegance & intention.</span>
                         </h1>
                         <p class="mt-3 text-base text-stone-500 sm:mt-5 sm:text-lg sm:max-w-xl sm:mx-auto md:mt-5 md:text-xl lg:mx-0">
-                            Unique Creations by Lisa C. brings you bespoke jewelry featuring semi-precious stones and intricate designs. Beautifully packaged and ready to wear.
+                            At Unique Creations by Lisa C, we specialize in crafting exquisite pieces that combine traditional techniques with modern design. Our unique creations showcase the intricate artistry of chainmail, the vibrant colors of beads, and the delicate texture of scale. We use anodized aluminum for many of our designs, which is not only incredibly lightweight but also hypoallergenic and won't rust or tarnish. Discover the perfect piece to add a touch of elegance and sophistication to your wardrobe.
                         </p>
                         <div class="mt-5 sm:mt-8 sm:flex sm:justify-center lg:justify-start gap-4">
                             <div class="rounded-md shadow">
@@ -194,6 +197,10 @@
             <!-- Product Grid -->
             <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-10 gap-x-6 xl:gap-x-8">
                 <!-- Products will be injected here via JS -->
+                <div class="col-span-full text-center py-20">
+                    <i data-lucide="loader-2" class="w-8 h-8 animate-spin mx-auto text-rose-800"></i>
+                    <p class="mt-2 text-stone-500">Loading exquisite pieces...</p>
+                </div>
             </div>
         </div>
     </section>
@@ -313,7 +320,7 @@
                             <p id="cart-subtotal">$0.00</p>
                         </div>
                         <p class="mt-0.5 text-sm text-stone-500 mb-6">Shipping and taxes calculated at checkout.</p>
-                        <button onclick="checkout()" class="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-stone-900 hover:bg-stone-800 transition-colors">
+                        <button onclick="openPaymentModal()" class="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-stone-900 hover:bg-stone-800 transition-colors">
                             <i data-lucide="lock" class="w-4 h-4 mr-2"></i> Checkout with Square
                         </button>
                     </div>
@@ -322,69 +329,77 @@
         </div>
     </div>
 
+    <!-- Square Payment Modal (Hidden by default) -->
+    <div id="payment-modal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <!-- Background overlay -->
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closePaymentModal()"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">Secure Payment</h3>
+                            <div class="mt-4">
+                                <!-- Square Payment Form Placeholder -->
+                                <div id="card-container" class="h-48 border border-stone-200 rounded flex items-center justify-center bg-stone-50 text-stone-500">
+                                    <p class="p-4 text-sm">
+                                        [Square Payment Form will mount here]<br><br>
+                                        <em>Note: To make this functional, you must replace the Application ID in the Javascript code.</em>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button type="button" onclick="handlePaymentSubmission()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-stone-900 text-base font-medium text-white hover:bg-stone-800 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
+                        Pay Now
+                    </button>
+                    <button type="button" onclick="closePaymentModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // --- DATA ---
-        const products = [
-            {
-                id: 1,
-                name: "Amethyst Teardrop Pendant",
-                price: 45.00,
-                category: "necklaces",
-                image: "https://images.unsplash.com/photo-1599643478518-17488fbbcd75?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80",
-                desc: "Hand-wrapped genuine amethyst on a 18-inch sterling silver chain."
-            },
-            {
-                id: 2,
-                name: "Rose Quartz Drop Earrings",
-                price: 28.00,
-                category: "earrings",
-                image: "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80",
-                desc: "Delicate pink stones accented with gold vermeil hooks."
-            },
-            {
-                id: 3,
-                name: "Bohemian Beaded Cuff",
-                price: 35.00,
-                category: "bracelets",
-                image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80",
-                desc: "Multi-layered woven bracelet with turquoise and seed beads."
-            },
-            {
-                id: 4,
-                name: "Midnight Onyx Statement",
-                price: 65.00,
-                category: "necklaces",
-                image: "https://images.unsplash.com/photo-1602751584552-8ba42d523f87?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80",
-                desc: "Bold black onyx stones set in textured silver."
-            },
-            {
-                id: 5,
-                name: "Hammered Gold Hoops",
-                price: 32.00,
-                category: "earrings",
-                image: "https://images.unsplash.com/photo-1630019852942-f89202989a51?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80",
-                desc: "Minimalist hoops with a unique hammered texture."
-            },
-            {
-                id: 6,
-                name: "Sea Glass Charm Bracelet",
-                price: 42.00,
-                category: "bracelets",
-                image: "https://images.unsplash.com/photo-1573408301185-a1d31e857b90?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80",
-                desc: "Cultured sea glass charms on a dainty silver chain."
-            }
-        ];
+        // --- API CONFIGURATION ---
+        // ⚠️ SECURITY WARNING: Never put your Square Access Token here.
+        // Use a backend proxy (like Netlify Functions) to store secrets.
+        const SQUARE_APP_ID = 'YOUR_SQUARE_APP_ID'; 
+        const LOCATION_ID = 'YOUR_LOCATION_ID';
 
         // --- STATE ---
         let cart = [];
         let isCartOpen = false;
+        let products = []; // Now empty, fetched via API
+        let payments = null;
+        let card = null;
 
         // --- INITIALIZATION ---
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             lucide.createIcons();
+            
+            // 1. Fetch Inventory (Simulated API Call)
+            await fetchCatalog();
+            
+            // 2. Render Initial Grid
             renderProducts('all');
             updateCartUI();
             
+            // 3. Initialize Square Payment SDK
+            try {
+                if (!window.Square) {
+                    throw new Error('Square.js failed to load');
+                }
+                payments = window.Square.payments(SQUARE_APP_ID, LOCATION_ID);
+            } catch (e) {
+                console.warn("Square SDK not initialized (Missing App ID):", e);
+            }
+
             // Navbar scroll effect
             window.addEventListener('scroll', () => {
                 const nav = document.getElementById('navbar');
@@ -396,7 +411,129 @@
             });
         });
 
-        // --- FUNCTIONS ---
+        // --- API FUNCTIONS ---
+
+        /**
+         * Simulates fetching data from Square Catalog API.
+         * In production, replace the URL with your Netlify Function endpoint.
+         * e.g., const response = await fetch('/.netlify/functions/get-inventory');
+         */
+        async function fetchCatalog() {
+            // Simulate Network Delay
+            await new Promise(resolve => setTimeout(resolve, 800));
+
+            // MOCK DATA - This mimics the structure you'd get from your backend
+            const mockData = [
+                {
+                    id: 1,
+                    name: "Amethyst Teardrop Pendant",
+                    price: 45.00,
+                    category: "necklaces",
+                    image: "https://images.unsplash.com/photo-1599643478518-17488fbbcd75?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80",
+                    desc: "Hand-wrapped genuine amethyst on a 18-inch sterling silver chain."
+                },
+                {
+                    id: 2,
+                    name: "Rose Quartz Drop Earrings",
+                    price: 28.00,
+                    category: "earrings",
+                    image: "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80",
+                    desc: "Delicate pink stones accented with gold vermeil hooks."
+                },
+                {
+                    id: 3,
+                    name: "Bohemian Beaded Cuff",
+                    price: 35.00,
+                    category: "bracelets",
+                    image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80",
+                    desc: "Multi-layered woven bracelet with turquoise and seed beads."
+                },
+                {
+                    id: 4,
+                    name: "Midnight Onyx Statement",
+                    price: 65.00,
+                    category: "necklaces",
+                    image: "https://images.unsplash.com/photo-1602751584552-8ba42d523f87?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80",
+                    desc: "Bold black onyx stones set in textured silver."
+                },
+                {
+                    id: 5,
+                    name: "Hammered Gold Hoops",
+                    price: 32.00,
+                    category: "earrings",
+                    image: "https://images.unsplash.com/photo-1630019852942-f89202989a51?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80",
+                    desc: "Minimalist hoops with a unique hammered texture."
+                },
+                {
+                    id: 6,
+                    name: "Sea Glass Charm Bracelet",
+                    price: 42.00,
+                    category: "bracelets",
+                    image: "https://images.unsplash.com/photo-1573408301185-a1d31e857b90?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80",
+                    desc: "Cultured sea glass charms on a dainty silver chain."
+                }
+            ];
+
+            products = mockData;
+            // Re-render is handled by initialization chain
+        }
+
+        // --- PAYMENT FUNCTIONS ---
+
+        async function openPaymentModal() {
+            if (cart.length === 0) {
+                showToast("Your cart is empty!");
+                return;
+            }
+            
+            // Close cart, open modal
+            toggleCart();
+            document.getElementById('payment-modal').classList.remove('hidden');
+
+            // Initialize Card Element if payments is ready
+            if (payments && !card) {
+                try {
+                    card = await payments.card();
+                    await card.attach('#card-container');
+                } catch (e) {
+                    console.error("Failed to attach card:", e);
+                    document.getElementById('card-container').innerHTML = 
+                        `<p class="text-red-500 p-4">Error loading Square Payment Form.<br>Please check your App ID configuration.</p>`;
+                }
+            }
+        }
+
+        function closePaymentModal() {
+            document.getElementById('payment-modal').classList.add('hidden');
+        }
+
+        async function handlePaymentSubmission() {
+            if (!card) {
+                alert("Payment system not initialized.");
+                return;
+            }
+
+            try {
+                // 1. Get the Payment Token (Nonce)
+                const result = await card.tokenize();
+                
+                if (result.status === 'OK') {
+                    // 2. Send this token to your backend
+                    console.log(`Payment Token Generated: ${result.token}`);
+                    alert("Success! Token generated. In a real app, this token is sent to your server to charge the card.");
+                    closePaymentModal();
+                    cart = [];
+                    updateCartUI();
+                } else {
+                    alert(`Payment failed: ${result.errors[0].message}`);
+                }
+            } catch (e) {
+                console.error(e);
+                alert("An unexpected error occurred.");
+            }
+        }
+
+        // --- CORE UI FUNCTIONS ---
 
         function renderProducts(category) {
             const grid = document.getElementById('product-grid');
@@ -592,32 +729,6 @@
             e.preventDefault();
             showToast("Thank you for subscribing!");
             e.target.reset();
-        }
-
-        function checkout() {
-            if (cart.length === 0) {
-                showToast("Your cart is empty!");
-                return;
-            }
-
-            // SIMULATING SQUARE CHECKOUT
-            // In a real application, this is where you would initialize 
-            // the Square Web Payments SDK or redirect to a Square Checkout Link.
-            
-            const total = document.getElementById('cart-subtotal').textContent;
-            
-            // Mock processing time
-            const btn = document.querySelector('#cart-panel button[onclick="checkout()"]');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 mr-2 animate-spin"></i> Processing...`;
-            lucide.createIcons();
-            
-            setTimeout(() => {
-                // Success Simulation
-                alert(`Redirecting to Square Secure Checkout for payment of ${total}...\n\n(This is a demo. In production, this connects to your Square API)`);
-                btn.innerHTML = originalText;
-                lucide.createIcons();
-            }, 1500);
         }
     </script>
 </body>
