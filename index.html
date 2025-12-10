@@ -83,12 +83,14 @@
 
                 <!-- Logo Center -->
                 <div class="flex-shrink-0 flex items-center cursor-pointer gap-3" onclick="navigateToPage('home')">
+                    <!-- Placeholder for the actual Logo File -->
                     <div class="h-16 w-16 relative rounded-lg overflow-hidden border border-stone-100 shadow-sm bg-white group">
                          <div class="absolute inset-0 flex items-center justify-center bg-white">
                              <span class="font-serif text-2xl font-bold text-stone-900">UC</span>
                          </div>
                          <!-- <img src="images/logo.jpg" alt="Unique Creations Logo" class="h-full w-full object-contain"> -->
                     </div>
+                    
                     <div class="hidden sm:block">
                         <span class="block font-serif text-xl font-bold tracking-tight text-stone-900 leading-none">
                             Unique Creations
@@ -460,15 +462,25 @@
                 const data = await response.json();
                 
                 if (data.objects) {
-                    products = data.objects.map(item => ({
-                        id: item.id,
-                        name: item.item_data.name,
-                        price: (item.item_data.variations?.[0]?.item_variation_data?.price_money?.amount || 0) / 100, 
-                        category: "all", 
-                        // Placeholder image until we implement image lookup
-                        image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80", 
-                        desc: item.item_data.description || "Handcrafted with care."
-                    }));
+                    products = data.objects.map(item => {
+                        // AUTO-DETECT CATEGORY BASED ON NAME
+                        // This fixes the empty filter results problem.
+                        let category = "all";
+                        const nameLower = item.item_data.name.toLowerCase();
+                        if (nameLower.includes("necklace")) category = "necklaces";
+                        else if (nameLower.includes("earring")) category = "earrings";
+                        else if (nameLower.includes("bracelet")) category = "bracelets";
+
+                        return {
+                            id: item.id,
+                            name: item.item_data.name,
+                            price: (item.item_data.variations?.[0]?.item_variation_data?.price_money?.amount || 0) / 100, 
+                            category: category, 
+                            // Placeholder image until we implement image lookup
+                            image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80", 
+                            desc: item.item_data.description || "Handcrafted with care."
+                        };
+                    });
                     console.log("Loaded inventory from Square API.");
                 } else {
                     console.warn("API connected but returned no items.");
@@ -599,6 +611,11 @@
                 ? products 
                 : products.filter(p => p.category === category);
 
+            if (filtered.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center py-20"><p class="text-stone-500">No items found in this category.</p></div>';
+                return;
+            }
+
             filtered.forEach((product, index) => {
                 const card = document.createElement('div');
                 card.className = 'group relative fade-in bg-white rounded-lg shadow-sm hover:shadow-lg transition-shadow duration-300 overflow-hidden border border-stone-100';
@@ -622,7 +639,7 @@
                             <p class="text-lg font-medium text-stone-900">$${product.price.toFixed(2)}</p>
                         </div>
                         <p class="mt-2 text-sm text-stone-500 line-clamp-2">${product.desc}</p>
-                        <button onclick="addToCart(${product.id})" class="mt-4 w-full bg-stone-900 text-white hover:bg-rose-800 py-3 px-4 rounded transition-colors text-xs font-bold uppercase tracking-widest relative z-20 flex items-center justify-center gap-2">
+                        <button onclick="addToCart('${product.id}')" class="mt-4 w-full bg-stone-900 text-white hover:bg-rose-800 py-3 px-4 rounded transition-colors text-xs font-bold uppercase tracking-widest relative z-20 flex items-center justify-center gap-2">
                            <i data-lucide="plus" class="w-4 h-4"></i> Add to Cart
                         </button>
                     </div>
@@ -717,11 +734,11 @@
                             </div>
                             <div class="flex flex-1 items-end justify-between text-sm">
                                 <div class="flex items-center border rounded border-stone-300">
-                                    <button onclick="updateQuantity(${item.id}, -1)" class="px-2 py-1 hover:bg-stone-100 transition-colors">-</button>
+                                    <button onclick="updateQuantity('${item.id}', -1)" class="px-2 py-1 hover:bg-stone-100 transition-colors">-</button>
                                     <span class="px-2 text-stone-900 font-medium">${item.quantity}</span>
-                                    <button onclick="updateQuantity(${item.id}, 1)" class="px-2 py-1 hover:bg-stone-100 transition-colors">+</button>
+                                    <button onclick="updateQuantity('${item.id}', 1)" class="px-2 py-1 hover:bg-stone-100 transition-colors">+</button>
                                 </div>
-                                <button onclick="removeFromCart(${item.id})" class="font-medium text-rose-600 hover:text-rose-500 text-xs uppercase tracking-wide">Remove</button>
+                                <button onclick="removeFromCart('${item.id}')" class="font-medium text-rose-600 hover:text-rose-500 text-xs uppercase tracking-wide">Remove</button>
                             </div>
                         </div>
                     </div>
