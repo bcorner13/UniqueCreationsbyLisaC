@@ -35,7 +35,6 @@
                             800: '#9f1239', // Brand accent
                             900: '#881337',
                         },
-                        // Added Leaf Green to match the logo foliage
                         leaf: {
                             50: '#f0fdf4',
                             100: '#dcfce7',
@@ -56,17 +55,9 @@
         }
     </script>
     <style>
-        /* Custom scrollbar for cart */
-        .scrollbar-hide::-webkit-scrollbar {
-            display: none;
-        }
-        .scrollbar-hide {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        .fade-in {
-            animation: fadeIn 0.5s ease-in-out;
-        }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -92,14 +83,12 @@
 
                 <!-- Logo Center -->
                 <div class="flex-shrink-0 flex items-center cursor-pointer gap-3" onclick="navigateToPage('home')">
-                    <!-- Placeholder for the actual Logo File -->
                     <div class="h-16 w-16 relative rounded-lg overflow-hidden border border-stone-100 shadow-sm bg-white group">
                          <div class="absolute inset-0 flex items-center justify-center bg-white">
                              <span class="font-serif text-2xl font-bold text-stone-900">UC</span>
                          </div>
                          <!-- <img src="images/logo.jpg" alt="Unique Creations Logo" class="h-full w-full object-contain"> -->
                     </div>
-                    
                     <div class="hidden sm:block">
                         <span class="block font-serif text-xl font-bold tracking-tight text-stone-900 leading-none">
                             Unique Creations
@@ -366,7 +355,7 @@
                                 <div id="card-container" class="h-48 border border-stone-200 rounded flex items-center justify-center bg-stone-50 text-stone-500">
                                     <p class="p-4 text-sm">
                                         [Square Payment Form will mount here]<br><br>
-                                        <em>Note: To make this functional, you must replace the Application ID in the Javascript code.</em>
+                                        <em>If this stays empty, ensure your Netlify Environment Variables (SQUARE_APP_ID) are set correctly.</em>
                                     </p>
                                 </div>
                             </div>
@@ -387,15 +376,13 @@
 
     <script>
         // --- API CONFIGURATION ---
-        // ⚠️ SECURITY WARNING: Never put your Square Access Token here.
-        // Use a backend proxy (like Netlify Functions) to store secrets.
-        const SQUARE_APP_ID = 'YOUR_SQUARE_APP_ID'; 
-        const LOCATION_ID = 'YOUR_LOCATION_ID';
+        let SQUARE_APP_ID = ''; 
+        let LOCATION_ID = '';
 
         // --- STATE ---
         let cart = [];
         let isCartOpen = false;
-        let products = []; // Now empty, fetched via API
+        let products = [];
         let payments = null;
         let card = null;
 
@@ -403,21 +390,29 @@
         document.addEventListener('DOMContentLoaded', async () => {
             lucide.createIcons();
             
-            // 1. Fetch Inventory (Simulated API Call)
+            // 1. Fetch Configuration (App ID & Location ID from backend)
+            await fetchConfig();
+
+            // 2. Fetch Inventory (Simulated or Real)
             await fetchCatalog();
             
-            // 2. Render Initial Grid
+            // 3. Render Initial Grid
             renderProducts('all');
             updateCartUI();
             
-            // 3. Initialize Square Payment SDK
-            try {
-                if (!window.Square) {
-                    throw new Error('Square.js failed to load');
+            // 4. Initialize Square Payment SDK
+            if (SQUARE_APP_ID) {
+                try {
+                    if (!window.Square) {
+                        throw new Error('Square.js failed to load');
+                    }
+                    payments = window.Square.payments(SQUARE_APP_ID, LOCATION_ID);
+                    console.log("Square SDK Initialized");
+                } catch (e) {
+                    console.warn("Square SDK not initialized:", e);
                 }
-                payments = window.Square.payments(SQUARE_APP_ID, LOCATION_ID);
-            } catch (e) {
-                console.warn("Square SDK not initialized (Missing App ID):", e);
+            } else {
+                console.log("Running in offline/preview mode (No App ID found)");
             }
 
             // Navbar scroll effect
@@ -431,58 +426,25 @@
             });
         });
 
-        // --- NAVIGATION FUNCTIONS (SPA) ---
-        
-        function navigateToPage(pageId) {
-            // Hide all pages
-            document.querySelectorAll('.page-view').forEach(el => el.classList.add('hidden'));
-            
-            // Show target page
-            const target = document.getElementById(`view-${pageId}`);
-            if (target) {
-                target.classList.remove('hidden');
-            }
-            
-            // Update Active Nav State
-            document.querySelectorAll('.nav-link').forEach(btn => {
-                if(btn.dataset.target === pageId) {
-                    btn.classList.add('text-rose-800');
-                    btn.classList.remove('text-stone-800');
-                } else {
-                    btn.classList.remove('text-rose-800');
-                    btn.classList.add('text-stone-800');
-                }
-            });
-
-            // Scroll top
-            window.scrollTo(0, 0);
-            
-            // Close mobile menu if open
-            document.getElementById('mobile-menu').classList.add('hidden');
-        }
-
-        function scrollToSection(id) {
-            // Legacy support: redirect to page navigation
-            if (id === 'collections') navigateToPage('shop');
-            else if (id === 'hero') navigateToPage('home');
-            else navigateToPage(id);
-        }
-        
-        function mobileNavClick(id) {
-            navigateToPage(id);
-        }
-
         // --- API FUNCTIONS ---
 
-        /**
-         * Fetches product data.
-         * Tries to hit a Netlify Function first.
-         * Falls back to Mock Data if the API is unreachable (dev mode).
-         */
+        async function fetchConfig() {
+            try {
+                // Calls the function created in netlify/functions/get-square-config.js
+                const response = await fetch('/.netlify/functions/get-square-config');
+                if (response.ok) {
+                    const config = await response.json();
+                    SQUARE_APP_ID = config.appId;
+                    LOCATION_ID = config.locationId;
+                }
+            } catch (e) {
+                console.warn("Could not load Square config (likely dev mode):", e);
+            }
+        }
+
         async function fetchCatalog() {
             try {
-                // Try to fetch from the local Netlify function
-                // This URL corresponds to a function file named 'square-inventory.js'
+                // Calls the function created in netlify/functions/square-inventory.js
                 const response = await fetch('/.netlify/functions/square-inventory');
                 
                 if (!response.ok) {
@@ -492,18 +454,21 @@
                 const data = await response.json();
                 
                 // Map Square API response structure to our internal product structure
-                // Assuming Square returns { objects: [ ... ] }
-                products = data.objects.map(item => ({
-                    id: item.id,
-                    name: item.item_data.name,
-                    // Find price in cents and convert to dollars
-                    price: (item.item_data.variations[0].item_variation_data.price_money.amount / 100), 
-                    category: "all", // Simplified: You could map this from item.item_data.category_id if needed
-                    image: "images/placeholder.jpg", // Square image URLs require a separate lookup or `related_objects`
-                    desc: item.item_data.description || "Handcrafted with care."
-                }));
-
-                console.log("Loaded inventory from Square API via Netlify.");
+                if (data.objects) {
+                    products = data.objects.map(item => ({
+                        id: item.id,
+                        name: item.item_data.name,
+                        // Price is in cents, convert to dollars. Fallback to 0 if missing.
+                        price: (item.item_data.variations?.[0]?.item_variation_data?.price_money?.amount || 0) / 100, 
+                        category: "all", 
+                        // Placeholder image until we implement image lookup
+                        image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80", 
+                        desc: item.item_data.description || "Handcrafted with care."
+                    }));
+                    console.log("Loaded inventory from Square API.");
+                } else {
+                    throw new Error("No objects returned");
+                }
 
             } catch (e) {
                 console.log("Using Mock Data (Backend not connected):", e);
@@ -606,10 +571,6 @@
                     console.log(`Payment Token Generated: ${result.token}`);
                     
                     // In a real app, you would POST this token to your backend to charge the card
-                    // const chargeResponse = await fetch('/.netlify/functions/square-payment', {
-                    //    method: 'POST',
-                    //    body: JSON.stringify({ token: result.token, amount: ... })
-                    // });
                     
                     alert("Success! Token generated. In a real app, this token is sent to your server to charge the card.");
                     closePaymentModal();
@@ -622,6 +583,47 @@
                 console.error(e);
                 alert("An unexpected error occurred.");
             }
+        }
+
+        // --- NAVIGATION FUNCTIONS (SPA) ---
+        
+        function navigateToPage(pageId) {
+            // Hide all pages
+            document.querySelectorAll('.page-view').forEach(el => el.classList.add('hidden'));
+            
+            // Show target page
+            const target = document.getElementById(`view-${pageId}`);
+            if (target) {
+                target.classList.remove('hidden');
+            }
+            
+            // Update Active Nav State
+            document.querySelectorAll('.nav-link').forEach(btn => {
+                if(btn.dataset.target === pageId) {
+                    btn.classList.add('text-rose-800');
+                    btn.classList.remove('text-stone-800');
+                } else {
+                    btn.classList.remove('text-rose-800');
+                    btn.classList.add('text-stone-800');
+                }
+            });
+
+            // Scroll top
+            window.scrollTo(0, 0);
+            
+            // Close mobile menu if open
+            document.getElementById('mobile-menu').classList.add('hidden');
+        }
+
+        function scrollToSection(id) {
+            // Legacy support: redirect to page navigation
+            if (id === 'collections') navigateToPage('shop');
+            else if (id === 'hero') navigateToPage('home');
+            else navigateToPage(id);
+        }
+        
+        function mobileNavClick(id) {
+            navigateToPage(id);
         }
 
         // --- CORE UI FUNCTIONS ---
@@ -654,7 +656,7 @@
                                     </a>
                                 </h3>
                             </div>
-                            <p class="text-lg font-medium text-stone-900">$${product.price}</p>
+                            <p class="text-lg font-medium text-stone-900">$${product.price.toFixed(2)}</p>
                         </div>
                         <p class="mt-2 text-sm text-stone-500 line-clamp-2">${product.desc}</p>
                         <button onclick="addToCart(${product.id})" class="mt-4 w-full bg-stone-900 text-white hover:bg-rose-800 py-3 px-4 rounded transition-colors text-xs font-bold uppercase tracking-widest relative z-20 flex items-center justify-center gap-2">
