@@ -17,8 +17,8 @@ export default async (req, context) => {
     : "https://connect.squareup.com";
 
   try {
-    // 4. Call Square API to get both ITEM and IMAGE objects
-    const response = await fetch(`${baseUrl}/v2/catalog/list?types=ITEM,IMAGE`, {
+    // 4. Call Square API to get ITEM, IMAGE, and MODIFIER_LIST objects
+    const response = await fetch(`${baseUrl}/v2/catalog/list?types=ITEM,IMAGE,MODIFIER_LIST`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${token}`,
@@ -34,11 +34,9 @@ export default async (req, context) => {
     }
 
     const data = await response.json();
-
-    // 5. Process the data
     const objects = data.objects || [];
-    
-    // Create a map of image IDs to URLs
+
+    // 5. Process the data into maps for easy lookup
     const imageMap = objects
       .filter(obj => obj.type === 'IMAGE')
       .reduce((map, img) => {
@@ -46,21 +44,36 @@ export default async (req, context) => {
         return map;
       }, {});
 
-    // Filter for only ITEM objects and enrich them with image URLs and all variations
+    const modifierMap = objects
+      .filter(obj => obj.type === 'MODIFIER_LIST')
+      .reduce((map, modList) => {
+        map[modList.id] = modList;
+        return map;
+      }, {});
+
+    // 6. Filter for only ITEM objects and enrich them
     const items = objects
       .filter(obj => obj.type === 'ITEM')
       .map(item => {
         const imageId = item.item_data.image_ids?.[0];
         const imageUrl = imageId ? imageMap[imageId] : "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80"; // Fallback
-        
+
+        // Embed the full modifier list objects into the item
+        const modifierLists = (item.item_data.modifier_list_info || [])
+          .map(info => modifierMap[info.modifier_list_id])
+          .filter(Boolean); // Filter out any null/undefined if a modifier wasn't found
+
         return {
           id: item.id,
-          item_data: item.item_data, // Keep all item data, including variations
-          image_url: imageUrl // Add the image URL to the item object
+          item_data: {
+            ...item.item_data,
+            modifier_lists: modifierLists // Add the resolved modifier lists
+          },
+          image_url: imageUrl
         };
       });
 
-    // 6. Success Response
+    // 7. Success Response
     return new Response(JSON.stringify({ objects: items }), {
       status: 200,
       headers: {

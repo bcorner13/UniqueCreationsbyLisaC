@@ -669,7 +669,8 @@
                             id: item.id,
                             name: item.item_data.name,
                             variations: item.item_data.variations,
-                            category: category, 
+                            modifier_lists: item.item_data.modifier_lists,
+                            category: category,
                             image: item.image_url,
                             desc: item.item_data.description || "Handcrafted with care."
                         };
@@ -810,19 +811,35 @@
                 cardEl.className = 'group relative fade-in bg-white rounded-lg shadow-sm hover:shadow-lg transition-shadow duration-300 overflow-hidden border border-neutral-100 flex flex-col';
                 cardEl.style.animationDelay = `${index * 100}ms`;
 
-                const hasOptions = product.variations.length > 1;
+                const hasVariations = product.variations.length > 1;
                 const defaultPrice = (product.variations[0].item_variation_data.price_money.amount || 0) / 100;
 
-                let optionsHTML = '';
-                if (hasOptions) {
-                    optionsHTML = `
+                let variationsHTML = '';
+                if (hasVariations) {
+                    variationsHTML = `
                         <div class="mt-2">
+                            <label class="text-xs text-neutral-500">Options</label>
                             <select onchange="handleOptionChange(this, '${product.id}')" class="w-full border-neutral-300 rounded-md shadow-sm text-sm">
                                 <option value="">Select an option</option>
                                 ${product.variations.map(v => `<option value="${v.id}">${v.item_variation_data.name} - $${(v.item_variation_data.price_money.amount / 100).toFixed(2)}</option>`).join('')}
                             </select>
                         </div>
                     `;
+                }
+
+                let modifiersHTML = '';
+                if (product.modifier_lists) {
+                    product.modifier_lists.forEach(modList => {
+                        modifiersHTML += `
+                            <div class="mt-2">
+                                <label class="text-xs text-neutral-500">${modList.modifier_list_data.name}</label>
+                                <select data-modifier-list-id="${modList.id}" class="w-full border-neutral-300 rounded-md shadow-sm text-sm">
+                                    <option value="">None</option>
+                                    ${modList.modifier_list_data.modifiers.map(mod => `<option value="${mod.id}">${mod.modifier_data.name}</option>`).join('')}
+                                </select>
+                            </div>
+                        `;
+                    });
                 }
 
                 cardEl.innerHTML = `
@@ -838,8 +855,9 @@
                             <p class="text-lg font-medium text-neutral-900" id="price-${product.id}">$${defaultPrice.toFixed(2)}</p>
                         </div>
                         <p class="mt-2 text-sm text-neutral-500 flex-grow">${product.desc}</p>
-                        ${optionsHTML}
-                        <button id="btn-${product.id}" onclick="addToCart('${product.id}')" class="mt-4 w-full bg-neutral-900 text-white py-3 px-4 rounded transition-colors text-xs font-bold uppercase tracking-widest relative z-10 flex items-center justify-center gap-2 hover:bg-primary-800 disabled:bg-neutral-300" ${hasOptions ? 'disabled' : ''}>
+                        ${variationsHTML}
+                        ${modifiersHTML}
+                        <button id="btn-${product.id}" onclick="addToCart('${product.id}')" class="mt-4 w-full bg-neutral-900 text-white py-3 px-4 rounded transition-colors text-xs font-bold uppercase tracking-widest relative z-10 flex items-center justify-center gap-2 hover:bg-primary-800 disabled:bg-neutral-300" ${hasVariations ? 'disabled' : ''}>
                            <i data-lucide="plus" class="w-4 h-4"></i> Add to Cart
                         </button>
                     </div>
@@ -876,21 +894,33 @@
 
         function addToCart(productId) {
             const product = products.find(p => p.id === productId);
-            const selectEl = document.querySelector(`select[onchange="handleOptionChange(this, '${productId}')"]`);
-            let selectedVariationId = null;
+            const cardEl = document.querySelector(`[id="btn-${productId}"]`).closest('.group');
 
-            if (selectEl) {
-                selectedVariationId = selectEl.value;
-                if (!selectedVariationId) {
+            let selectedVariationId = product.variations[0].id;
+            if (product.variations.length > 1) {
+                const variationSelect = cardEl.querySelector(`select[onchange="handleOptionChange(this, '${productId}')"]`);
+                if (!variationSelect.value) {
                     showToast("Please select an option.", true);
                     return;
                 }
-            } else {
-                selectedVariationId = product.variations[0].id;
+                selectedVariationId = variationSelect.value;
             }
 
             const selectedVariation = product.variations.find(v => v.id === selectedVariationId);
-            const cartId = `${productId}-${selectedVariationId}`; // Unique ID for item-variation combo
+
+            const selectedModifiers = [];
+            if (product.modifier_lists) {
+                cardEl.querySelectorAll('select[data-modifier-list-id]').forEach(modSelect => {
+                    if (modSelect.value) {
+                        selectedModifiers.push({
+                            id: modSelect.value,
+                            name: modSelect.options[modSelect.selectedIndex].text
+                        });
+                    }
+                });
+            }
+
+            const cartId = `${productId}-${selectedVariationId}-${selectedModifiers.map(m => m.id).join('-')}`;
 
             const existingItem = cart.find(item => item.cartId === cartId);
 
@@ -904,11 +934,12 @@
                     variationName: selectedVariation.item_variation_data.name,
                     price: (selectedVariation.item_variation_data.price_money.amount / 100),
                     image: product.image,
-                    quantity: 1
+                    quantity: 1,
+                    modifiers: selectedModifiers
                 });
             }
 
-            showToast(`Added ${product.name} (${selectedVariation.item_variation_data.name}) to cart`);
+            showToast(`Added ${product.name} to cart`);
             updateCartUI();
         }
 
@@ -963,28 +994,35 @@
                         <button onclick="toggleCart(); navigateToPage('shop')" class="mt-4 text-primary-800 font-medium hover:underline">Start Shopping</button>
                     </div>`;
             } else {
-                container.innerHTML = cart.map(item => `
-                    <div class="flex py-6 border-b border-neutral-100 animate-fadeIn">
-                        <div class="h-24 w-24 flex-shrink-0 overflow-hidden rounded-md border border-neutral-200">
-                            <img src="${item.image}" alt="${item.name}" class="h-full w-full object-cover object-center">
-                        </div>
-                        <div class="ml-4 flex flex-1 flex-col">
-                            <div>
-                                <div class="flex justify-between text-base font-medium text-neutral-900">
-                                    <h3 class="font-serif">${item.name} <span class="text-sm text-neutral-500">(${item.variationName})</span></h3>
-                                    <p class="ml-4">$${(item.price * item.quantity).toFixed(2)}</p>
+                container.innerHTML = cart.map(item => {
+                    let modifierInfo = '';
+                    if (item.modifiers && item.modifiers.length > 0) {
+                        modifierInfo = `<p class="text-xs text-neutral-500">Colors: ${item.modifiers.map(m => m.name).join(', ')}</p>`;
+                    }
+                    return `
+                        <div class="flex py-6 border-b border-neutral-100 animate-fadeIn">
+                            <div class="h-24 w-24 flex-shrink-0 overflow-hidden rounded-md border border-neutral-200">
+                                <img src="${item.image}" alt="${item.name}" class="h-full w-full object-cover object-center">
+                            </div>
+                            <div class="ml-4 flex flex-1 flex-col">
+                                <div>
+                                    <div class="flex justify-between text-base font-medium text-neutral-900">
+                                        <h3 class="font-serif">${item.name} <span class="text-sm text-neutral-500">(${item.variationName})</span></h3>
+                                        <p class="ml-4">$${(item.price * item.quantity).toFixed(2)}</p>
+                                    </div>
+                                    ${modifierInfo}
+                                </div>
+                                <div class="flex flex-1 items-end justify-between text-sm">
+                                    <div class="flex items-center border rounded border-neutral-300">
+                                        <button onclick="updateQuantity('${item.cartId}', -1)" class="px-2 py-1 hover:bg-neutral-100 transition-colors">-</button>
+                                        <span class="px-2 text-neutral-900 font-medium">${item.quantity}</span>
+                                        <button onclick="updateQuantity('${item.cartId}', 1)" class="px-2 py-1 hover:bg-neutral-100 transition-colors">+</button>
+                                    </div>
+                                    <button onclick="removeFromCart('${item.cartId}')" class="font-medium text-primary-600 hover:text-primary-500 text-xs uppercase tracking-wide">Remove</button>
                                 </div>
                             </div>
-                            <div class="flex flex-1 items-end justify-between text-sm">
-                                <div class="flex items-center border rounded border-neutral-300">
-                                    <button onclick="updateQuantity('${item.cartId}', -1)" class="px-2 py-1 hover:bg-neutral-100 transition-colors">-</button>
-                                    <span class="px-2 text-neutral-900 font-medium">${item.quantity}</span>
-                                    <button onclick="updateQuantity('${item.cartId}', 1)" class="px-2 py-1 hover:bg-neutral-100 transition-colors">+</button>
-                                </div>
-                                <button onclick="removeFromCart('${item.cartId}')" class="font-medium text-primary-600 hover:text-primary-500 text-xs uppercase tracking-wide">Remove</button>
-                            </div>
-                        </div>
-                    </div>`).join('');
+                        </div>`;
+                }).join('');
             }
             lucide.createIcons();
         }
