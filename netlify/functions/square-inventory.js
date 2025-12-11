@@ -46,7 +46,7 @@ export default async (req, context) => {
         return map;
       }, {});
 
-    // Filter for only ITEM objects and enrich them with image URLs
+    // Filter for only ITEM objects and enrich them with image URLs and all variations
     const items = objects
       .filter(obj => obj.type === 'ITEM')
       .map(item => {
@@ -54,7 +54,8 @@ export default async (req, context) => {
         const imageUrl = imageId ? imageMap[imageId] : "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80"; // Fallback
         
         return {
-          ...item,
+          id: item.id,
+          item_data: item.item_data, // Keep all item data, including variations
           image_url: imageUrl // Add the image URL to the item object
         };
       });
