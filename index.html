@@ -694,6 +694,7 @@
 
             if (!card) {
                 try {
+                    cardContainer.innerHTML = '<p class="text-neutral-500 text-sm">Loading secure payment form...</p>'; // Clear placeholder
                     card = await payments.card();
                     await card.attach('#card-container');
                 } catch (e) {
