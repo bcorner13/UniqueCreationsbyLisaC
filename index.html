@@ -197,7 +197,9 @@
 
     <!-- Notification Toast -->
     <div id="toast" class="fixed top-24 right-5 bg-neutral-900 text-white px-6 py-4 rounded shadow-lg transform translate-x-full transition-transform duration-300 z-50 flex items-center gap-3">
-        <i data-lucide="check-circle" class="w-5 h-5 text-secondary-500"></i>
+        <span id="toast-icon-container">
+            <i data-lucide="check-circle" class="w-5 h-5 text-secondary-500"></i>
+        </span>
         <span id="toast-message">Item added to cart</span>
     </div>
 
@@ -1009,13 +1011,16 @@
 
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
-            const icon = toast.querySelector('i');
+            const iconContainer = document.getElementById('toast-icon-container');
             document.getElementById('toast-message').textContent = message;
 
-            icon.classList.toggle('text-secondary-500', !isError);
-            icon.classList.toggle('text-red-500', isError);
-            icon.setAttribute('data-lucide', isError ? 'alert-circle' : 'check-circle');
-            lucide.createIcons();
+            const iconName = isError ? 'alert-circle' : 'check-circle';
+            const iconColor = isError ? 'text-red-500' : 'text-secondary-500';
+
+            iconContainer.innerHTML = `<i data-lucide="${iconName}" class="w-5 h-5 ${iconColor}"></i>`;
+            lucide.createIcons({
+                nodes: [iconContainer.firstChild]
+            });
 
             toast.classList.remove('translate-x-full');
             setTimeout(() => toast.classList.add('translate-x-full'), 3000);
